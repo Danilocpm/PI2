@@ -4,7 +4,7 @@ import json
 timeout = 10
 
 def load_config():
-    with open('config.json') as f:
+    with open('configdb.json') as f:
         return json.load(f)
 
 def get_connection():
