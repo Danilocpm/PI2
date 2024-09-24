@@ -1,7 +1,7 @@
 import pymysql
 import json
 
-timeout = 10
+timeout = 60
 
 def load_config():
     with open('configdb.json') as f:

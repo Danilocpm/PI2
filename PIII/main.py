@@ -46,7 +46,7 @@ class Dados(Resource):
         if connection:
             try:
                 cursor = connection.cursor()
-                cursor.execute("SELECT * FROM tabela_exemplo")  # Exemplo de consulta SQL
+                cursor.execute("SELECT * FROM Professores")
                 dados = cursor.fetchall()
                 return {"dados": dados}, 200
             except Exception as e:
