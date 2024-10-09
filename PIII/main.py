@@ -66,7 +66,7 @@ class Dashboard(Resource):
             try:
                 cursor = connection.cursor()
                 # Substitua pela consulta desejada
-                cursor.execute("SELECT data_coluna_1, data_coluna_2 FROM sua_tabela")  # Altere os nomes das colunas e da tabela conforme necessário
+                cursor.execute("SELECT * FROM Materia")  # Altere os nomes das colunas e da tabela conforme necessário
                 dados = cursor.fetchall()
                 # Cria um DataFrame do Pandas para retornar os dados de forma organizada
                 df = pd.DataFrame(dados, columns=['Coluna 1', 'Coluna 2'])  # Altere os nomes das colunas conforme necessário
