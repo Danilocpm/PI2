@@ -1,7 +1,8 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_restx import Api, Resource
-from db import get_connection
-import pandas as pd  
+from db import get_connection, insert_data_to_mysql
+from googlecloud import get_sheet_data
+
 
 # Inicializa o aplicativo Flask
 app = Flask(__name__)
@@ -56,27 +57,22 @@ class Dados(Resource):
         else:
             return {"message": "Não foi possível conectar ao banco de dados!"}, 500
 
-# Novo endpoint para o dashboard
-@api.route('/dashboard')
-class Dashboard(Resource):
-    def get(self):
-        # Obtém conexão com o banco de dados
-        connection = get_db_connection()
-        if connection:
-            try:
-                cursor = connection.cursor()
-                # Substitua pela consulta desejada
-                cursor.execute("SELECT data_coluna_1, data_coluna_2 FROM sua_tabela")  # Altere os nomes das colunas e da tabela conforme necessário
-                dados = cursor.fetchall()
-                # Cria um DataFrame do Pandas para retornar os dados de forma organizada
-                df = pd.DataFrame(dados, columns=['Coluna 1', 'Coluna 2'])  # Altere os nomes das colunas conforme necessário
-                return df.to_dict(orient='records'), 200  # Retorna os dados como uma lista de dicionários
-            except Exception as e:
-                return {"message": f"Erro ao consultar dados: {e}"}, 500
-            finally:
-                connection.close()
-        else:
-            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+# Google Sheets para DB
+
+@app.route('/insert_data', methods=['POST'])
+def insert_data():
+    data = request.get_json()  # Obter o JSON da requisição
+    print("Dados recebidos:", data)  # Adiciona esta linha para verificar o conteúdo de 'data'
+    
+    if not data:
+        return jsonify({"error": "Nenhum dado recebido"}), 400
+
+    # Passe o `data` para a função de inserção no banco de dados
+    insert_data_to_mysql(data)
+    return jsonify({"status": "Dados inseridos com sucesso"}), 200
+
+
 
 if __name__ == "__main__":
     app.run(debug=True)
