@@ -19,6 +19,11 @@ def get_db_connection():
     except Exception as e:
         print(f"Erro ao conectar ao banco de dados: {e}")
         return None
+    
+# Função de fechamento seguro da conexão
+def close_connection(connection):
+    if connection:
+        connection.close()
 
 # Rota principal da API
 @api.route('/status')
@@ -54,6 +59,71 @@ class Dados(Resource):
                 return {"message": f"Erro ao consultar dados: {e}"}, 500
             finally:
                 connection.close()
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+# Função para inserir dados
+@api.route('/dados', methods=['POST'])
+class InserirDados(Resource):
+    def post(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                data = request.json  # Recebe os dados no formato JSON
+                nome = data.get('nome')
+                valor = data.get('valor')
+
+                cursor = connection.cursor()
+                cursor.execute("INSERT INTO tabela_exemplo (nome, valor) VALUES (%s, %s)", (nome, valor))
+                connection.commit()
+                
+                return {"message": "Dados inseridos com sucesso!"}, 201
+            except Exception as e:
+                return {"message": f"Erro ao inserir dados: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+# Função para atualizar dados
+@api.route('/dados/<int:id>', methods=['PUT'])
+class AtualizarDados(Resource):
+    def put(self, id):
+        connection = get_db_connection()
+        if connection:
+            try:
+                data = request.json  # Recebe os dados no formato JSON
+                nome = data.get('nome')
+                valor = data.get('valor')
+
+                cursor = connection.cursor()
+                cursor.execute("UPDATE tabela_exemplo SET nome = %s, valor = %s WHERE id = %s", (nome, valor, id))
+                connection.commit()
+
+                return {"message": "Dados atualizados com sucesso!"}, 200
+            except Exception as e:
+                return {"message": f"Erro ao atualizar dados: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+# Função para deletar dados
+@api.route('/dados/<int:id>', methods=['DELETE'])
+class DeletarDados(Resource):
+    def delete(self, id):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("DELETE FROM tabela_exemplo WHERE id = %s", (id,))
+                connection.commit()
+
+                return {"message": "Dados deletados com sucesso!"}, 200
+            except Exception as e:
+                return {"message": f"Erro ao deletar dados: {e}"}, 500
+            finally:
+                close_connection(connection)
         else:
             return {"message": "Não foi possível conectar ao banco de dados!"}, 500
 
