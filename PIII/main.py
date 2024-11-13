@@ -142,7 +142,129 @@ def insert_data():
     insert_data_to_mysql(data)
     return jsonify({"status": "Dados inseridos com sucesso"}), 200
 
+# Endpoint para consultar a tabela Curso
+@api.route('/cursos')
+class Cursos(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("SELECT * FROM Curso")
+                cursos = cursor.fetchall()
+                return {"cursos": cursos}, 200
+            except Exception as e:
+                return {"message": f"Erro ao consultar Cursos: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
 
+
+# Endpoint para consultar a tabela Materia_Curso
+@api.route('/materia_cursos')
+class MateriaCursos(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("SELECT * FROM Materia_Curso")
+                materia_cursos = cursor.fetchall()
+                return {"materia_cursos": materia_cursos}, 200
+            except Exception as e:
+                return {"message": f"Erro ao consultar Materia_Curso: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+
+
+# Endpoint para consultar a tabela Professor_Materia
+@api.route('/professor_materias')
+class ProfessorMaterias(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("SELECT * FROM Professor_Materia")
+                professor_materias = cursor.fetchall()
+                return {"professor_materias": professor_materias}, 200
+            except Exception as e:
+                return {"message": f"Erro ao consultar Professor_Materia: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+
+
+# Endpoint para consultar a tabela Professor_Disponibilidade
+@api.route('/professor_disponibilidades')
+class ProfessorDisponibilidades(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                cursor.execute("SELECT * FROM Professor_Disponibilidade")
+                professor_disponibilidades = cursor.fetchall()
+                return {"professor_disponibilidades": professor_disponibilidades}, 200
+            except Exception as e:
+                return {"message": f"Erro ao consultar Professor_Disponibilidade: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+# Endpoint para consultar professores compatíveis com uma matéria e verificar disponibilidade
+@api.route('/professores_compatibilidade')
+class ProfessoresCompatibilidade(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                # Recebe parâmetros de consulta
+                materia_curso_id = request.args.get("materia_curso_id")
+                turno = request.args.get("turno")
+                dia = request.args.get("dia")
+                
+                cursor = connection.cursor(dictionary=True)
+                
+                # 1. Encontra os professores compatíveis com a matéria selecionada
+                query_compatibilidade = """
+                    SELECT p.id, p.nome
+                    FROM Professores p
+                    JOIN Professor_Materia pm ON p.id = pm.professor_id
+                    JOIN Materia_Curso mc ON pm.materia_id = mc.materia_id
+                    WHERE mc.id = %s
+                """
+                cursor.execute(query_compatibilidade, (materia_curso_id,))
+                professores_compativeis = cursor.fetchall()
+
+                # 2. Verifica a disponibilidade dos professores compatíveis
+                professores_disponiveis = []
+                for professor in professores_compativeis:
+                    query_disponibilidade = """
+                        SELECT d.id
+                        FROM Disponibilidade d
+                        JOIN Professor_Disponibilidade pd ON d.id = pd.disponibilidade_id
+                        WHERE pd.professor_id = %s AND d.%s = 1
+                    """
+                    # Substitui %s e turno conforme o dia e turno informados
+                    cursor.execute(query_disponibilidade, (professor["id"], f"{dia}{turno}"))
+                    disponibilidade = cursor.fetchone()
+                    
+                    if disponibilidade:
+                        professores_disponiveis.append(professor)
+
+                return {"professores_disponiveis": professores_disponiveis}, 200
+            except Exception as e:
+                return {"message": f"Erro ao verificar compatibilidade e disponibilidade: {e}"}, 500
+            finally:
+                close_connection(connection)
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
 
 if __name__ == "__main__":
     app.run(debug=True)
