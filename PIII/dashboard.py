@@ -36,6 +36,11 @@ if response.status_code == 200:
         
     elif tabela_selecionada == "sala":
         st.subheader("Análises para a Tabela 'Sala'")
+        
+        st.subheader("Detalhes da Sala")
+        sala = df['id'].unique()
+        sala_selecionada = st.selectbox("Selecione uma sala", sala)
+        st.write(df[df['id'] == sala_selecionada])
 
         # Gráfico de barras: Número de salas por campus
         st.subheader("Número de Salas por Campus")
@@ -78,11 +83,6 @@ if response.status_code == 200:
         professor_selecionado = st.selectbox("Selecione um professor", professores)
         st.write(df[df['nome'] == professor_selecionado][['nome', 'curriculo']])
 
-        # Gráfico de barras para o número de cursos lecionados por cada professor
-        st.subheader("Cursos Lecionados por Professor")
-        professor_count = df['nome'].value_counts()
-        st.bar_chart(professor_count)
-
     elif tabela_selecionada == "Materia":
         st.subheader("Detalhes das Matérias")
         materias = df['nome'].unique()
@@ -96,22 +96,13 @@ if response.status_code == 200:
         materias_por_area = df['area'].value_counts()
         # Exibir gráfico de barras
         st.bar_chart(materias_por_area)        
+        # Gráfico de barras para o número de matérias por área
+        st.subheader("Número de Matérias por Semestre")
         # Contar o número de matérias em cada semestre
         materias_por_semestre= df['semestre'].value_counts()
 
         # Exibir gráfico de barras
         st.bar_chart(materias_por_semestre)   
-
-    elif tabela_selecionada == "Disponibilidade":
-        st.subheader("Disponibilidade dos Professores")
-        dias = df['dia_da_semana'].unique()
-        dia_selecionado = st.selectbox("Selecione um dia da semana", dias)
-        st.write(df[df['dia_da_semana'] == dia_selecionado])
-
-        # Gráfico de barras para a disponibilidade dos professores por dia da semana
-        st.subheader("Disponibilidade dos Professores por Dia")
-        dia_count = df['dia_da_semana'].value_counts()
-        st.bar_chart(dia_count)
 
     elif tabela_selecionada == "Alocacao":
         st.subheader("Alocações")
@@ -170,20 +161,6 @@ if response.status_code == 200:
         ax5.set_title("Distribuição de Alocações por Turma")
         st.pyplot(fig5)
 
-    # Gráfico de barras geral para a tabela selecionada (caso existam colunas numéricas)
-    if not df.select_dtypes(include=['number']).empty:
-        st.subheader("Gráfico de Barras (Geral)")
-        st.bar_chart(df.select_dtypes(include=['number']))
-
-    # Gráfico de pizza geral para a tabela selecionada (caso existam colunas categóricas)
-    if not df.select_dtypes(include=['object']).empty:
-        st.subheader("Gráfico de Pizza (Geral)")
-        # Supondo que a coluna categórica seja a primeira coluna do DataFrame
-        categoria_count = df.iloc[:, 0].value_counts()
-        fig, ax = plt.subplots()
-        ax.pie(categoria_count, labels=categoria_count.index, autopct='%1.1f%%', startangle=90)
-        ax.axis('equal')
-        st.pyplot(fig)
 
 else:
     st.write('Falha ao conectar-se à API.', response.status_code)
