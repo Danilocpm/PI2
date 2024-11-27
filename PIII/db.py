@@ -98,7 +98,142 @@ def insert_data_to_mysql(rows):
             connection.close()  # Garantir que a conexão seja fechada
 
 
+def insert_disponibilidade_to_mysql(data):
+    try:
+        connection = get_connection()
+        with connection.cursor() as cursor:
+            # Extract professor information
+            nome = data.get('nome', 'N/A')
+            email = data.get('email', 'N/A')
 
+            # Search for the professor in the Professores table
+            select_professor_query = "SELECT id FROM Professores WHERE nome = %s AND email = %s"
+            cursor.execute(select_professor_query, (nome, email))
+            professor_result = cursor.fetchone()
+            if professor_result:
+                professor_id = professor_result['id']
+            else:
+                # Insert new professor if not found
+                insert_professor_query = "INSERT INTO Professores (nome, email) VALUES (%s, %s)"
+                cursor.execute(insert_professor_query, (nome, email))
+                professor_id = cursor.lastrowid
+
+            # Process campus information
+            campus = data.get('campus', 'N/A')
+            campus_list = [c.strip() for c in campus.split(',')] if campus != 'N/A' else []
+
+            # Define day mappings
+            day_mapping = {
+                'Segunda': 'seg',
+                'Terça': 'ter',
+                'Quarta': 'quarta',
+                'Quinta': 'quinta',
+                'Sexta': 'sex',
+            }
+
+            # For each campus, process availability data
+            for c in campus_list:
+                disponibilidade_data = {
+                    'professor_id': professor_id,
+                    'turno_id': None,  # Assuming turno_id is optional or can be NULL
+                    'campus_id': None,  # To be set after fetching from Campus table
+                    'consideracoes': '',
+                    'seg': 0,
+                    'ter': 0,
+                    'quarta': 0,
+                    'quinta': 0,
+                    'sex': 0,
+                    'segtarde': 0,
+                    'tertarde': 0,
+                    'quartarde': 0,
+                    'quintatarde': 0,
+                    'sextarde': 0,
+                    'segnoite': 0,
+                    'ternoite': 0,
+                    'quartanoite': 0,
+                    'quintanoite': 0,
+                    'sexnoite': 0,
+                }
+
+                # Fetch campus_id from Campus table
+                select_campus_query = "SELECT id FROM Campus WHERE nome = %s"
+                cursor.execute(select_campus_query, (c,))
+                campus_result = cursor.fetchone()
+                if campus_result:
+                    campus_id = campus_result['id']
+                    disponibilidade_data['campus_id'] = campus_id
+                else:
+                    # Handle error: Campus not found
+                    print(f"Campus não encontrado: {c}")
+                    continue  # Skip to next campus
+
+                # For "Asa Norte", use the fields without suffix
+                if c == 'Asa Norte':
+                    dias_manha = data.get('diasdemanha', '')
+                    dias_tarde = data.get('diasdetarde', '')
+                    dias_noite = data.get('diasdenoite', '')
+                    observacao = data.get('observacao1', '')
+                # For "Taguatinga", use the fields with suffix 2/3
+                elif c == 'Taguatinga':
+                    dias_manha = data.get('diasdemanha2', '')
+                    dias_tarde = data.get('diasdetarde2', '')
+                    dias_noite = data.get('diasdenoite3', '')
+                    observacao = data.get('observacao2', '')
+                else:
+                    # Unknown campus
+                    print(f"Campus desconhecido: {c}")
+                    continue
+
+                disponibilidade_data['consideracoes'] = observacao
+
+                # Process morning availability
+                if dias_manha and dias_manha != 'N/A':
+                    dias_manha_list = [d.strip() for d in dias_manha.split(',')]
+                    for dia in dias_manha_list:
+                        field_name = day_mapping.get(dia)
+                        if field_name:
+                            disponibilidade_data[field_name] = 1
+
+                # Process afternoon availability
+                if dias_tarde and dias_tarde != 'N/A':
+                    dias_tarde_list = [d.strip() for d in dias_tarde.split(',')]
+                    for dia in dias_tarde_list:
+                        field_name = day_mapping.get(dia)
+                        if field_name:
+                            disponibilidade_data[f"{field_name}tarde"] = 1
+
+                # Process night availability
+                if dias_noite and dias_noite != 'N/A':
+                    dias_noite_list = [d.strip() for d in dias_noite.split(',')]
+                    for dia in dias_noite_list:
+                        field_name = day_mapping.get(dia)
+                        if field_name:
+                            disponibilidade_data[f"{field_name}noite"] = 1
+
+                # Insert disponibilidade_data into disponibilidade table
+                fields = ', '.join(disponibilidade_data.keys())
+                placeholders = ', '.join(['%s'] * len(disponibilidade_data))
+                values = list(disponibilidade_data.values())
+                insert_disponibilidade_query = f"INSERT INTO Disponibilidade ({fields}) VALUES ({placeholders})"
+                cursor.execute(insert_disponibilidade_query, values)
+                disponibilidade_id = cursor.lastrowid
+
+                # Insert into Professor_Disponibilidade table
+                insert_professor_disponibilidade_query = """
+                    INSERT INTO Professor_Disponibilidade (professor_id, disponibilidade_id)
+                    VALUES (%s, %s)
+                """
+                cursor.execute(insert_professor_disponibilidade_query, (professor_id, disponibilidade_id))
+
+            # Commit the transaction
+            connection.commit()
+            print("Dados inseridos com sucesso.")
+
+    except Exception as e:
+        print(f"Erro ao inserir dados: {e}")
+    finally:
+        if connection:
+            connection.close()
 
 
 

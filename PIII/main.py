@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_restx import Api, Resource
-from db import get_connection, insert_data_to_mysql
+from db import get_connection, insert_data_to_mysql, insert_disponibilidade_to_mysql
 from googlecloud import get_sheet_data
 
 
@@ -140,6 +140,18 @@ def insert_data():
 
     # Passe o `data` para a função de inserção no banco de dados
     insert_data_to_mysql(data)
+    return jsonify({"status": "Dados inseridos com sucesso"}), 200
+
+@app.route('/insert_data2', methods=['POST'])
+def insert_data2():
+    data = request.get_json()  # Obter o JSON da requisição
+    print("Dados recebidos:", data)  # Verificar o conteúdo de 'data'
+    
+    if not data:
+        return jsonify({"error": "Nenhum dado recebido"}), 400
+
+    # Chamar a função de inserção passando 'data'
+    insert_disponibilidade_to_mysql(data)
     return jsonify({"status": "Dados inseridos com sucesso"}), 200
 
 # Endpoint para consultar a tabela Curso
