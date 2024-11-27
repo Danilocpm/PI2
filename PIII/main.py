@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from flask_restx import Api, Resource
+from flask_restx import Api, Resource, fields
 from db import get_connection, insert_data_to_mysql, insert_disponibilidade_to_mysql
 from googlecloud import get_sheet_data
 
@@ -42,6 +42,8 @@ class Status(Resource):
         finally:
             if connection:
                 connection.close()
+
+
 
 # Rota de exemplo para operações com o banco de dados
 @api.route('/dados')
@@ -228,55 +230,163 @@ class ProfessorDisponibilidades(Resource):
                 close_connection(connection)
         else:
             return {"message": "Não foi possível conectar ao banco de dados!"}, 500
-        
-# Endpoint para consultar professores compatíveis com uma matéria e verificar disponibilidade
-@api.route('/professores_compatibilidade')
-class ProfessoresCompatibilidade(Resource):
-    def get(self):
+
+turma_model = api.model('Turma', {
+    'semestre': fields.String(required=True, description='Semestre da turma, ex: 2024.1'),
+    'materia_curso_id': fields.Integer(required=True, description='ID da matéria do curso'),
+    'campus_id': fields.Integer(required=True, description='ID do campus associado à turma'),
+    'turno': fields.String(required=True, description='Turno da turma, ex: Matutino'),
+    'dia_da_semana': fields.String(required=True, description='Dia da semana da aula, ex: Segunda-feira')
+})
+
+# Endpoint para criar uma turma com a FK do campus
+@api.route('/turmas')
+class CriarTurma(Resource):
+    @api.expect(turma_model, validate=True)
+    @api.doc(description="Cria uma turma sem professor associado e vincula a um campus.")
+    def post(self):
         connection = get_db_connection()
         if connection:
             try:
-                # Recebe parâmetros de consulta
-                materia_curso_id = request.args.get("materia_curso_id")
-                turno = request.args.get("turno")
-                dia = request.args.get("dia")
-                
-                cursor = connection.cursor(dictionary=True)
-                
-                # 1. Encontra os professores compatíveis com a matéria selecionada
-                query_compatibilidade = """
-                    SELECT p.id, p.nome
-                    FROM Professores p
-                    JOIN Professor_Materia pm ON p.id = pm.professor_id
-                    JOIN Materia_Curso mc ON pm.materia_id = mc.materia_id
-                    WHERE mc.id = %s
-                """
-                cursor.execute(query_compatibilidade, (materia_curso_id,))
-                professores_compativeis = cursor.fetchall()
+                data = request.json  # Recebe os dados no formato JSON
 
-                # 2. Verifica a disponibilidade dos professores compatíveis
-                professores_disponiveis = []
-                for professor in professores_compativeis:
-                    query_disponibilidade = """
-                        SELECT d.id
-                        FROM Disponibilidade d
-                        JOIN Professor_Disponibilidade pd ON d.id = pd.disponibilidade_id
-                        WHERE pd.professor_id = %s AND d.%s = 1
-                    """
-                    # Substitui %s e turno conforme o dia e turno informados
-                    cursor.execute(query_disponibilidade, (professor["id"], f"{dia}{turno}"))
-                    disponibilidade = cursor.fetchone()
-                    
-                    if disponibilidade:
-                        professores_disponiveis.append(professor)
+                # Obtém os valores do JSON
+                semestre = data['semestre']
+                materia_curso_id = data['materia_curso_id']
+                campus_id = data['campus_id']
+                turno = data['turno']
+                dia_da_semana = data['dia_da_semana']
 
-                return {"professores_disponiveis": professores_disponiveis}, 200
+                # Validação básica para campus_id
+                if not isinstance(campus_id, int) or campus_id <= 0:
+                    return {"message": "O campo campus_id deve ser um número inteiro positivo!"}, 400
+
+                # Insere os dados na tabela Turma, professor_id como NULL
+                cursor = connection.cursor()
+                cursor.execute("""
+                    INSERT INTO Turma (semestre, materia_curso_id, professor_id, campus_id, turno, dia_da_semana)
+                    VALUES (%s, %s, NULL, %s, %s, %s)
+                """, (semestre, materia_curso_id, campus_id, turno, dia_da_semana))
+                connection.commit()
+
+                return {"message": "Turma criada com sucesso!"}, 201
             except Exception as e:
-                return {"message": f"Erro ao verificar compatibilidade e disponibilidade: {e}"}, 500
+                return {"message": f"Erro ao criar a turma: {e}"}, 500
             finally:
                 close_connection(connection)
         else:
             return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+        
+def verificar_compatibilidade_turma(turma_id):
+    connection = get_db_connection()
+    if not connection:
+        return {"message": "Erro ao conectar ao banco de dados!"}, 500
+
+    try:
+        cursor = connection.cursor()
+
+        # Passo 1: Buscar informações da turma
+        query_turma = """
+            SELECT id, semestre, materia_id, professor_id, turno, dia_da_semana, campus_id 
+            FROM Turma 
+            WHERE id = %s
+        """
+        print("Consulta SQL (Turma):", query_turma)
+        cursor.execute(query_turma, (turma_id,))
+        turma = cursor.fetchone()
+        print("Resultado da consulta da turma:", turma)
+        if not turma:
+            return {"message": "Turma não encontrada!"}, 404
+
+        # Extrair os campos
+        turma_id = turma['id']
+        semestre = turma['semestre']
+        materia_id = turma['materia_id']
+        professor_id = turma['professor_id']
+        turno = turma['turno']
+        dia_da_semana = turma['dia_da_semana']
+        campus_id = turma['campus_id']
+
+        print(f"Campus ID: {campus_id}, Dia: {dia_da_semana}, Turno: {turno}, Materia_ID: {materia_id}")
+
+        if not campus_id or not dia_da_semana or not turno:
+            return {"message": "Dados incompletos na tabela Turma!"}, 500
+
+        # Passo 2: Buscar professores com a mesma matéria da turma
+        query_professores = """
+            SELECT pm.professor_id
+            FROM Professor_Materia pm
+            WHERE pm.materia_id = %s
+        """
+        print("Consulta SQL (Professor_Materia):", query_professores)
+        print(f"Parâmetro (Materia_ID): {materia_id}")
+        cursor.execute(query_professores, (materia_id,))
+        professores = cursor.fetchall()
+        print("Professores encontrados na Professor_Materia:", professores)
+
+        if not professores:
+            return {"message": "Nenhum professor encontrado para a matéria da turma!"}, 404
+
+        professor_ids = [p['professor_id'] for p in professores]
+        print("Lista de IDs de professores:", professor_ids)
+
+        # Passo 3: Verificar disponibilidade dos professores no mesmo campus e dia/turno
+        coluna_dia_turno = f"{dia_da_semana.lower()}{turno.lower()}"  # Ex.: segmanha ou segnoite
+        print(f"Coluna do dia/turno a ser verificada: {coluna_dia_turno}")
+
+        # Montar a consulta SQL dinâmica corretamente
+        format_strings = ','.join(['%s'] * len(professor_ids))
+        query_disponibilidade = f"""
+            SELECT d.professor_id
+            FROM Disponibilidade d
+            WHERE d.campus_id = %s 
+              AND d.{coluna_dia_turno} = 1 
+              AND d.professor_id IN ({format_strings})
+        """
+        parametros_disponibilidade = [campus_id] + professor_ids
+        print("Consulta SQL (Disponibilidade):", query_disponibilidade)
+        print("Parâmetros (Disponibilidade):", parametros_disponibilidade)
+        cursor.execute(query_disponibilidade, parametros_disponibilidade)
+        professores_disponiveis = cursor.fetchall()
+        print("Professores disponíveis encontrados:", professores_disponiveis)
+
+        if not professores_disponiveis:
+            return {"message": "Nenhum professor disponível para a turma!"}, 404
+
+        professores_compativeis = [p['professor_id'] for p in professores_disponiveis]
+        print("Professores compatíveis:", professores_compativeis)
+
+        return {"professores_compatíveis": professores_compativeis}, 200
+
+    except Exception as e:
+        print("Erro capturado (detalhado):", repr(e))
+        return {"message": f"Erro ao verificar compatibilidade: {repr(e)}"}, 500
+    finally:
+        close_connection(connection)
+
+
+
+
+professores_model = api.model('ProfessoresCompatibilidade', {
+    'professores_compatíveis': fields.List(fields.Integer, description='Lista de IDs dos professores compatíveis')
+})
+
+# Endpoint para verificar compatibilidade de professores com uma turma
+@api.route('/turmas/<int:turma_id>/professores_compativeis')
+class ProfessoresCompativeis(Resource):
+    @api.doc(description="Verifica a compatibilidade de professores para uma turma com base na matéria e na disponibilidade.")
+    @api.response(200, 'Professores encontrados', model=professores_model)
+    @api.response(404, 'Nenhum professor encontrado ou disponível')
+    @api.response(500, 'Erro interno ao processar a solicitação')
+    def get(self, turma_id):
+        """
+        Retorna uma lista de professores compatíveis para uma turma específica.
+        """
+        try:
+            resultado, status = verificar_compatibilidade_turma(turma_id)
+            return resultado, status
+        except Exception as e:
+            return {"message": f"Erro ao processar a solicitação: {e}"}, 500
 
 if __name__ == "__main__":
     app.run(debug=True)
