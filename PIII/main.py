@@ -266,5 +266,59 @@ class ProfessoresCompatibilidade(Resource):
         else:
             return {"message": "Não foi possível conectar ao banco de dados!"}, 500
 
+@api.route('/dashboard')
+class Dashboard(Resource):
+    def get(self):
+        connection = get_db_connection()
+        if connection:
+            try:
+                cursor = connection.cursor()
+                
+                # Consultar todas as tabelas que você quer retornar
+                cursor.execute("SELECT * FROM Curso")
+                cursos = cursor.fetchall()
+                
+                cursor.execute("SELECT * FROM Turno")
+                turnos = cursor.fetchall()
+
+                cursor.execute("SELECT * FROM Turma")
+                turmas = cursor.fetchall()
+
+                cursor.execute("SELECT * FROM Professores")
+                professores = cursor.fetchall()
+
+                cursor.execute("SELECT * FROM Materia")
+                materias = cursor.fetchall()
+
+                cursor.execute("SELECT * FROM Campus")
+                campus = cursor.fetchall()
+        
+                cursor.execute("SELECT * FROM Alocacao")
+                alocacao = cursor.fetchall()
+
+                cursor.execute("SELECT * FROM Sala")
+                sala = cursor.fetchall()
+
+                # Agrupar os dados em um dicionário
+                data = {
+                    "Curso": cursos,
+                    "Turno": turnos,
+                    "Turma": turmas,
+                    "Professores": professores,
+                    "Materia": materias,
+                    "Campus": campus,
+                    "Alocacao": alocacao,
+                    "Sala": sala
+                }
+
+                # Retornar os dados das tabelas em formato JSON
+                return data, 200
+            except Exception as e:
+                return {"message": f"Erro ao consultar dados: {e}"}, 500
+            finally:
+                connection.close()
+        else:
+            return {"message": "Não foi possível conectar ao banco de dados!"}, 500
+
 if __name__ == "__main__":
     app.run(debug=True)
