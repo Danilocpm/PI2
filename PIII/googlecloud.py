@@ -7,6 +7,12 @@ def load_config():
     with open('configcloud.json') as f:
         return json.load(f)
 
+# Function to load configurations for the new spreadsheet
+def load_config_new():
+    with open('configcloud_new.json') as f:
+        return json.load(f)
+
+
 # Função para obter dados da Google Sheets
 def get_sheet_data():
     # Carregar configurações
@@ -25,6 +31,29 @@ def get_sheet_data():
     service = build('sheets', 'v4', developerKey=API_KEY)
 
     # Chamar a API para obter os dados
+    sheet = service.spreadsheets()
+    result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
+    rows = result.get('values', [])
+
+    return rows
+
+def get_sheet_data_new():
+    # Load configurations
+    config = load_config_new()
+    
+    # Your API key (from configcloud_new.json)
+    API_KEY = config['api_key']
+
+    # The new spreadsheet ID
+    SPREADSHEET_ID = config['spreadsheet_id']
+
+    # The cell range you want to access
+    RANGE_NAME = config['range_name']  # From the new config file
+
+    # Connect to the Google Sheets service
+    service = build('sheets', 'v4', developerKey=API_KEY)
+
+    # Call the API to get the data from the new spreadsheet
     sheet = service.spreadsheets()
     result = sheet.values().get(spreadsheetId=SPREADSHEET_ID, range=RANGE_NAME).execute()
     rows = result.get('values', [])
