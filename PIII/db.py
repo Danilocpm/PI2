@@ -100,132 +100,170 @@ def insert_data_to_mysql(rows):
 
 def insert_disponibilidade_to_mysql(data):
     try:
+        print("Iniciando a inserção de disponibilidade no MySQL")
+        print(f"Dados recebidos: {data}")
         connection = get_connection()
+        print("Conexão com o banco de dados estabelecida")
         with connection.cursor() as cursor:
-            # Extract professor information
+            # Extrair informações do professor
             nome = data.get('nome', 'N/A')
             email = data.get('email', 'N/A')
+            print(f"Nome do professor: {nome}, Email: {email}")
 
-            # Search for the professor in the Professores table
+            # Buscar o professor na tabela Professores
             select_professor_query = "SELECT id FROM Professores WHERE nome = %s AND email = %s"
             cursor.execute(select_professor_query, (nome, email))
             professor_result = cursor.fetchone()
+            print(f"Resultado da busca do professor: {professor_result}")
             if professor_result:
                 professor_id = professor_result['id']
+                print(f"Professor encontrado com ID: {professor_id}")
             else:
-                # Insert new professor if not found
+                # Inserir novo professor se não encontrado
                 insert_professor_query = "INSERT INTO Professores (nome, email) VALUES (%s, %s)"
                 cursor.execute(insert_professor_query, (nome, email))
                 professor_id = cursor.lastrowid
+                print(f"Novo professor inserido com ID: {professor_id}")
 
-            # Process campus information
+            # Processar informações do campus
             campus = data.get('campus', 'N/A')
+            print(f"Campus recebido: {campus}")
             campus_list = [c.strip() for c in campus.split(',')] if campus != 'N/A' else []
+            print(f"Lista de campus: {campus_list}")
 
-            # Define day mappings
+            # Mapeamento dos dias para os campos correspondentes na tabela
             day_mapping = {
                 'Segunda': 'seg',
                 'Terça': 'ter',
-                'Quarta': 'quarta',
-                'Quinta': 'quinta',
+                'Quarta': 'quar',
+                'Quinta': 'quin',
                 'Sexta': 'sex',
             }
 
-            # For each campus, process availability data
+            # Para cada campus, processar dados de disponibilidade
             for c in campus_list:
+                print(f"Processando dados para o campus: {c}")
                 disponibilidade_data = {
                     'professor_id': professor_id,
-                    'turno_id': None,  # Assuming turno_id is optional or can be NULL
-                    'campus_id': None,  # To be set after fetching from Campus table
+                    'turno_id': None,  # Supondo que turno_id é opcional ou pode ser NULL
+                    'campus_id': None,  # Será definido após buscar na tabela Campus
                     'consideracoes': '',
-                    'seg': 0,
-                    'ter': 0,
-                    'quarta': 0,
-                    'quinta': 0,
-                    'sex': 0,
+                    'segmanha': 0,
+                    'termanha': 0,
+                    'quarmanha': 0,
+                    'quinmanha': 0,
+                    'sexmanha': 0,
                     'segtarde': 0,
                     'tertarde': 0,
                     'quartarde': 0,
-                    'quintatarde': 0,
+                    'quintarde': 0,
                     'sextarde': 0,
                     'segnoite': 0,
                     'ternoite': 0,
-                    'quartanoite': 0,
-                    'quintanoite': 0,
+                    'quarnoite': 0,
+                    'quinnoite': 0,
                     'sexnoite': 0,
                 }
 
-                # Fetch campus_id from Campus table
+                # Buscar campus_id na tabela Campus
                 select_campus_query = "SELECT id FROM Campus WHERE nome = %s"
                 cursor.execute(select_campus_query, (c,))
                 campus_result = cursor.fetchone()
+                print(f"Resultado da busca do campus: {campus_result}")
                 if campus_result:
                     campus_id = campus_result['id']
                     disponibilidade_data['campus_id'] = campus_id
+                    print(f"Campus encontrado com ID: {campus_id}")
                 else:
-                    # Handle error: Campus not found
+                    # Tratar erro: Campus não encontrado
                     print(f"Campus não encontrado: {c}")
-                    continue  # Skip to next campus
+                    continue  # Pular para o próximo campus
 
-                # For "Asa Norte", use the fields without suffix
+                # Para "Asa Norte", usar os campos sem sufixo
                 if c == 'Asa Norte':
                     dias_manha = data.get('diasdemanha', '')
                     dias_tarde = data.get('diasdetarde', '')
                     dias_noite = data.get('diasdenoite', '')
                     observacao = data.get('observacao1', '')
-                # For "Taguatinga", use the fields with suffix 2/3
+                    print(f"Dias de manhã: {dias_manha}")
+                    print(f"Dias de tarde: {dias_tarde}")
+                    print(f"Dias de noite: {dias_noite}")
+                    print(f"Observação: {observacao}")
+                # Para "Taguatinga", usar os campos com sufixo 2/3
                 elif c == 'Taguatinga':
                     dias_manha = data.get('diasdemanha2', '')
                     dias_tarde = data.get('diasdetarde2', '')
                     dias_noite = data.get('diasdenoite3', '')
                     observacao = data.get('observacao2', '')
+                    print(f"Dias de manhã: {dias_manha}")
+                    print(f"Dias de tarde: {dias_tarde}")
+                    print(f"Dias de noite: {dias_noite}")
+                    print(f"Observação: {observacao}")
                 else:
-                    # Unknown campus
+                    # Campus desconhecido
                     print(f"Campus desconhecido: {c}")
                     continue
 
                 disponibilidade_data['consideracoes'] = observacao
 
-                # Process morning availability
+                # Processar disponibilidade de manhã
                 if dias_manha and dias_manha != 'N/A':
                     dias_manha_list = [d.strip() for d in dias_manha.split(',')]
+                    print(f"Lista de dias de manhã: {dias_manha_list}")
                     for dia in dias_manha_list:
-                        field_name = day_mapping.get(dia)
-                        if field_name:
+                        field_prefix = day_mapping.get(dia)
+                        if field_prefix:
+                            field_name = f"{field_prefix}manha"
                             disponibilidade_data[field_name] = 1
+                            print(f"Disponibilidade manhã atualizada: {field_name} = 1")
+                        else:
+                            print(f"Dia inválido encontrado na manhã: {dia}")
 
-                # Process afternoon availability
+                # Processar disponibilidade de tarde
                 if dias_tarde and dias_tarde != 'N/A':
                     dias_tarde_list = [d.strip() for d in dias_tarde.split(',')]
+                    print(f"Lista de dias de tarde: {dias_tarde_list}")
                     for dia in dias_tarde_list:
-                        field_name = day_mapping.get(dia)
-                        if field_name:
-                            disponibilidade_data[f"{field_name}tarde"] = 1
+                        field_prefix = day_mapping.get(dia)
+                        if field_prefix:
+                            field_name = f"{field_prefix}tarde"
+                            disponibilidade_data[field_name] = 1
+                            print(f"Disponibilidade tarde atualizada: {field_name} = 1")
+                        else:
+                            print(f"Dia inválido encontrado na tarde: {dia}")
 
-                # Process night availability
+                # Processar disponibilidade de noite
                 if dias_noite and dias_noite != 'N/A':
                     dias_noite_list = [d.strip() for d in dias_noite.split(',')]
+                    print(f"Lista de dias de noite: {dias_noite_list}")
                     for dia in dias_noite_list:
-                        field_name = day_mapping.get(dia)
-                        if field_name:
-                            disponibilidade_data[f"{field_name}noite"] = 1
+                        field_prefix = day_mapping.get(dia)
+                        if field_prefix:
+                            field_name = f"{field_prefix}noite"
+                            disponibilidade_data[field_name] = 1
+                            print(f"Disponibilidade noite atualizada: {field_name} = 1")
+                        else:
+                            print(f"Dia inválido encontrado na noite: {dia}")
 
-                # Insert disponibilidade_data into disponibilidade table
+                print(f"Dados de disponibilidade a serem inseridos: {disponibilidade_data}")
+                # Inserir disponibilidade_data na tabela Disponibilidade
                 fields = ', '.join(disponibilidade_data.keys())
                 placeholders = ', '.join(['%s'] * len(disponibilidade_data))
                 values = list(disponibilidade_data.values())
                 insert_disponibilidade_query = f"INSERT INTO Disponibilidade ({fields}) VALUES ({placeholders})"
                 cursor.execute(insert_disponibilidade_query, values)
                 disponibilidade_id = cursor.lastrowid
+                print(f"Disponibilidade inserida com ID: {disponibilidade_id}")
 
-                # Insert into Professor_Disponibilidade table
+                # Inserir na tabela Professor_Disponibilidade
                 insert_professor_disponibilidade_query = """
                     INSERT INTO Professor_Disponibilidade (professor_id, disponibilidade_id)
                     VALUES (%s, %s)
                 """
                 cursor.execute(insert_professor_disponibilidade_query, (professor_id, disponibilidade_id))
+                print("Relação Professor_Disponibilidade inserida com sucesso")
 
-            # Commit the transaction
+            # Confirmar a transação
             connection.commit()
             print("Dados inseridos com sucesso.")
 
@@ -234,6 +272,7 @@ def insert_disponibilidade_to_mysql(data):
     finally:
         if connection:
             connection.close()
+            print("Conexão com o banco de dados fechada")
 
 
 
