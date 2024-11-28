@@ -287,54 +287,56 @@ def verificar_compatibilidade_turma(turma_id):
 
         # Passo 1: Buscar informações da turma
         query_turma = """
-            SELECT id, semestre, materia_id, professor_id, turno, dia_da_semana, campus_id 
+            SELECT id, semestre, materia_curso_id, professor_id, turno, dia_da_semana, campus_id 
             FROM Turma 
             WHERE id = %s
         """
-        print("Consulta SQL (Turma):", query_turma)
         cursor.execute(query_turma, (turma_id,))
         turma = cursor.fetchone()
-        print("Resultado da consulta da turma:", turma)
         if not turma:
             return {"message": "Turma não encontrada!"}, 404
 
         # Extrair os campos
         turma_id = turma['id']
         semestre = turma['semestre']
-        materia_id = turma['materia_id']
+        materia_curso_id = turma['materia_curso_id']
         professor_id = turma['professor_id']
         turno = turma['turno']
         dia_da_semana = turma['dia_da_semana']
         campus_id = turma['campus_id']
 
-        print(f"Campus ID: {campus_id}, Dia: {dia_da_semana}, Turno: {turno}, Materia_ID: {materia_id}")
-
         if not campus_id or not dia_da_semana or not turno:
             return {"message": "Dados incompletos na tabela Turma!"}, 500
 
-        # Passo 2: Buscar professores com a mesma matéria da turma
+        # Passo 2: Obter o materia_id a partir do materia_curso_id
+        query_materia_curso = """
+            SELECT materia_id
+            FROM Materia_Curso
+            WHERE id = %s
+        """
+        cursor.execute(query_materia_curso, (materia_curso_id,))
+        materia_curso = cursor.fetchone()
+        if not materia_curso:
+            return {"message": "Materia_Curso não encontrado!"}, 404
+
+        materia_id = materia_curso['materia_id']
+
+        # Passo 3: Buscar professores que ensinam a mesma matéria
         query_professores = """
             SELECT pm.professor_id
             FROM Professor_Materia pm
             WHERE pm.materia_id = %s
         """
-        print("Consulta SQL (Professor_Materia):", query_professores)
-        print(f"Parâmetro (Materia_ID): {materia_id}")
         cursor.execute(query_professores, (materia_id,))
         professores = cursor.fetchall()
-        print("Professores encontrados na Professor_Materia:", professores)
-
         if not professores:
             return {"message": "Nenhum professor encontrado para a matéria da turma!"}, 404
 
         professor_ids = [p['professor_id'] for p in professores]
-        print("Lista de IDs de professores:", professor_ids)
 
-        # Passo 3: Verificar disponibilidade dos professores no mesmo campus e dia/turno
+        # Passo 4: Verificar disponibilidade dos professores no mesmo campus e dia/turno
         coluna_dia_turno = f"{dia_da_semana.lower()}{turno.lower()}"  # Ex.: segmanha ou segnoite
-        print(f"Coluna do dia/turno a ser verificada: {coluna_dia_turno}")
 
-        # Montar a consulta SQL dinâmica corretamente
         format_strings = ','.join(['%s'] * len(professor_ids))
         query_disponibilidade = f"""
             SELECT d.professor_id
@@ -344,22 +346,16 @@ def verificar_compatibilidade_turma(turma_id):
               AND d.professor_id IN ({format_strings})
         """
         parametros_disponibilidade = [campus_id] + professor_ids
-        print("Consulta SQL (Disponibilidade):", query_disponibilidade)
-        print("Parâmetros (Disponibilidade):", parametros_disponibilidade)
         cursor.execute(query_disponibilidade, parametros_disponibilidade)
         professores_disponiveis = cursor.fetchall()
-        print("Professores disponíveis encontrados:", professores_disponiveis)
-
         if not professores_disponiveis:
             return {"message": "Nenhum professor disponível para a turma!"}, 404
 
         professores_compativeis = [p['professor_id'] for p in professores_disponiveis]
-        print("Professores compatíveis:", professores_compativeis)
 
         return {"professores_compatíveis": professores_compativeis}, 200
 
     except Exception as e:
-        print("Erro capturado (detalhado):", repr(e))
         return {"message": f"Erro ao verificar compatibilidade: {repr(e)}"}, 500
     finally:
         close_connection(connection)
